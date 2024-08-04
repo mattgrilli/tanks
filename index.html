@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tank Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    
+    <div class="controls">
+        <label>
+            Angle: <input type="range" id="angleInput" min="0" max="90" value="45">
+            <span id="angleValue">45</span>°
+        </label>
+        <label>
+            Power: <input type="range" id="powerInput" min="0" max="1000" value="500">
+            <span id="powerValue">500</span>
+        </label>
+        <button id="fireButton">Fire!</button>
+    </div>
+
+    <div id="turnIndicator"></div>
+    <div id="windIndicator"></div>
+
+    <div class="options">
+        <label>
+            <input type="checkbox" id="aiToggle"> AI Opponent
+        </label>
+    </div>
+
+    <div id="debug"></div>
+
+    <audio id="fireSound" src="fire.mp3"></audio>
+    <audio id="explosionSound" src="explosion.flac"></audio>
+    <audio id="windSound" src="sounds/wind.mp3"></audio>
+
+    <script src="game.js"></script>
+</body>
+</html>
