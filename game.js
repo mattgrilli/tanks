@@ -292,23 +292,30 @@ class Tank {
         this.maxHealth = 100;
         this.fuel = 100;
         this.maxFuel = 100;
+        this.rollAngle = 0;
+        this.rollVelocity = 0;
+        this.isRolling = false;
     }
 
     draw() {
         let y = canvas.height - this.getTerrainHeight(this.x) - 20;
         
+        ctx.save();
+        ctx.translate(this.x, y);
+        ctx.rotate(this.rollAngle * Math.PI / 180);
+        
         // Tank body
         ctx.fillStyle = this.team.primaryColor;
         ctx.beginPath();
-        ctx.moveTo(this.x - 25, y + 15);
-        ctx.lineTo(this.x - 20, y);
-        ctx.lineTo(this.x + 20, y);
-        ctx.lineTo(this.x + 25, y + 15);
+        ctx.moveTo(-25, 15);
+        ctx.lineTo(-20, 0);
+        ctx.lineTo(20, 0);
+        ctx.lineTo(25, 15);
         ctx.closePath();
         ctx.fill();
         
         // Add shading to tank body
-        let gradient = ctx.createLinearGradient(this.x - 25, y, this.x + 25, y + 15);
+        let gradient = ctx.createLinearGradient(-25, 0, 25, 15);
         gradient.addColorStop(0, this.team.primaryColor);
         gradient.addColorStop(1, darkenColor(this.team.primaryColor, 30));
         ctx.fillStyle = gradient;
@@ -316,24 +323,24 @@ class Tank {
         
         // Tank tracks
         ctx.fillStyle = '#333';
-        ctx.fillRect(this.x - 30, y + 15, 60, 10);
+        ctx.fillRect(-30, 15, 60, 10);
         for (let i = 0; i < 7; i++) {
-            ctx.fillRect(this.x - 30 + i * 10, y + 15, 5, 10);
+            ctx.fillRect(-30 + i * 10, 15, 5, 10);
         }
         
         // Tank turret
         ctx.fillStyle = this.team.secondaryColor;
         ctx.beginPath();
-        ctx.arc(this.x, y - 5, 15, 0, Math.PI * 2);
+        ctx.arc(0, -5, 15, 0, Math.PI * 2);
         ctx.fill();
         
         // Tank cannon
         ctx.beginPath();
-        ctx.moveTo(this.x, y - 5);
+        ctx.moveTo(0, -5);
         let cannonAngle = this.x < canvas.width / 2 ? this.angle : 180 - this.angle;
         ctx.lineTo(
-            this.x + Math.cos(cannonAngle * Math.PI / 180) * 35,
-            y - 5 - Math.sin(cannonAngle * Math.PI / 180) * 35
+            Math.cos(cannonAngle * Math.PI / 180) * 35,
+            -5 - Math.sin(cannonAngle * Math.PI / 180) * 35
         );
         ctx.strokeStyle = darkenColor(this.team.secondaryColor, 20);
         ctx.lineWidth = 8;
@@ -342,8 +349,10 @@ class Tank {
         // Tank details
         ctx.fillStyle = '#333';
         ctx.beginPath();
-        ctx.arc(this.x, y - 5, 8, 0, Math.PI * 2);
+        ctx.arc(0, -5, 8, 0, Math.PI * 2);
         ctx.fill();
+
+        ctx.restore();
 
         // Health bar
         ctx.fillStyle = 'red';
@@ -428,11 +437,37 @@ class Tank {
         if (this.fuel > 0) {
             let newX = this.x + direction * 5;
             if (newX > 30 && newX < canvas.width - 30) {
+                let currentHeight = this.getTerrainHeight(this.x);
+                let newHeight = this.getTerrainHeight(newX);
                 this.x = newX;
                 this.fuel = Math.max(0, this.fuel - 1); // Moving costs 1 fuel
+                
+                // Calculate roll angle based on terrain slope
+                let slope = (newHeight - currentHeight) / 5; // 5 is the movement distance
+                this.rollAngle = Math.atan(slope) * 180 / Math.PI;
+                this.rollAngle = Math.max(-30, Math.min(30, this.rollAngle)); // Limit roll angle
+                
+                this.isRolling = true;
+                this.rollVelocity = direction * 2; // Set roll velocity based on direction
             }
         } else {
             log(`${this.team.name} tank is out of fuel!`);
+        }
+    }
+
+    updateRoll() {
+        if (this.isRolling) {
+            this.rollAngle += this.rollVelocity;
+            this.rollAngle = Math.max(-30, Math.min(30, this.rollAngle)); // Limit roll angle
+            
+            // Slow down the roll
+            this.rollVelocity *= 0.9;
+            
+            // Stop rolling when velocity is very low
+            if (Math.abs(this.rollVelocity) < 0.1) {
+                this.isRolling = false;
+                this.rollVelocity = 0;
+            }
         }
     }
 }
@@ -514,6 +549,10 @@ function gameLoop() {
     drawSky();
     drawTerrain();
     drawWind();
+    
+    tank1.updateRoll();
+    tank2.updateRoll();
+    
     tank1.draw();
     tank2.draw();
     
@@ -651,8 +690,36 @@ function updateTeamPreview(playerID) {
     const selectedTeam = teams[select.value];
 
     flagContainer.textContent = selectedTeam.flag;
-    tankPreview.style.backgroundColor = selectedTeam.primaryColor;
-    tankPreview.style.boxShadow = `0 0 10px ${selectedTeam.secondaryColor}`;
+    drawTankPreview(tankPreview, selectedTeam);
+}
+
+function drawTankPreview(canvas, team) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw tank body
+    ctx.fillStyle = team.primaryColor;
+    ctx.beginPath();
+    ctx.moveTo(20, 45);
+    ctx.lineTo(25, 30);
+    ctx.lineTo(75, 30);
+    ctx.lineTo(80, 45);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Draw tank turret
+    ctx.fillStyle = team.secondaryColor;
+    ctx.beginPath();
+    ctx.arc(50, 25, 15, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Draw tank cannon
+    ctx.beginPath();
+    ctx.moveTo(50, 25);
+    ctx.lineTo(85, 20);
+    ctx.strokeStyle = darkenColor(team.secondaryColor, 20);
+    ctx.lineWidth = 8;
+    ctx.stroke();
 }
 
 function startGame() {
