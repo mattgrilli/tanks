@@ -3,38 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tank Game</title>
+    <title>Advanced Tank Game</title>
     <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" rel="stylesheet">
 </head>
 <body>
-    <canvas id="gameCanvas" width="800" height="400"></canvas>
-    
-    <div class="controls">
-        <label>
-            Angle: <input type="range" id="angleInput" min="0" max="90" value="45">
-            <span id="angleValue">45</span>°
-        </label>
-        <label>
-            Power: <input type="range" id="powerInput" min="0" max="1000" value="500">
-            <span id="powerValue">500</span>
-        </label>
-        <button id="fireButton">Fire!</button>
+    <div id="mainMenu" class="screen">
+        <div class="menu-container">
+            <h1 class="game-title">Matt's Tank Game</h1>
+            <div class="menu-buttons">
+                <button id="newGameBtn" class="menu-button">New Game</button>
+                <button id="loadGameBtn" class="menu-button">Load Game</button>
+            </div>
+        </div>
+        <div class="tank-silhouettes"></div>
     </div>
 
-    <div id="turnIndicator"></div>
-    <div id="windIndicator"></div>
-
-    <div class="options">
-        <label>
-            <input type="checkbox" id="aiToggle"> AI Opponent
-        </label>
+    <div id="teamSelection" class="screen hidden">
+        <h2 class="selection-title">Select Your Teams</h2>
+        <div class="team-selection-container">
+            <div id="player1Selection" class="player-selection">
+                <h3>Player 1</h3>
+                <div class="team-preview">
+                    <div class="flag-container"></div>
+                    <div class="tank-preview"></div>
+                </div>
+                <select id="player1Team"></select>
+            </div>
+            <div id="player2Selection" class="player-selection">
+                <h3>Player 2 / AI</h3>
+                <div class="team-preview">
+                    <div class="flag-container"></div>
+                    <div class="tank-preview"></div>
+                </div>
+                <select id="player2Team"></select>
+            </div>
+        </div>
+        <button id="startGameBtn" class="menu-button">Start Game</button>
     </div>
 
-    <div id="debug"></div>
+    <div id="gameScreen" class="screen hidden">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        
+        <div class="controls">
+            <div class="angle-controls">
+                <button id="angleDownBtn">◀ Angle</button>
+                <input type="range" id="angleInput" min="0" max="90" value="45">
+                <button id="angleUpBtn">Angle ▶</button>
+                <span id="angleValue">45</span>°
+            </div>
+            <div class="power-controls">
+                <button id="powerDownBtn">▼ Power</button>
+                <input type="range" id="powerInput" min="200" max="1000" value="500">
+                <button id="powerUpBtn">Power ▲</button>
+                <span id="powerValue">500</span>
+            </div>
+            <div class="movement-controls">
+                <button id="moveLeftBtn">◀ Move</button>
+                <button id="moveRightBtn">Move ▶</button>
+            </div>
+            <button id="fireButton">Fire!</button>
+            <button id="openStoreBtn">Open Store</button>
+        </div>
 
-    <audio id="fireSound" src="fire.mp3"></audio>
-    <audio id="explosionSound" src="explosion.flac"></audio>
-    <audio id="windSound" src="sounds/wind.mp3"></audio>
+        <div id="turnIndicator"></div>
+        <div id="windIndicator"></div>
+
+        <div class="options">
+            <label>
+                <input type="checkbox" id="aiToggle"> AI Opponent
+            </label>
+        </div>
+
+        <div id="upgradeStore" class="hidden">
+            <!-- Content will be dynamically populated -->
+        </div>
+
+        <button id="saveGameBtn">Save Game</button>
+        <button id="mainMenuBtn">Main Menu</button>
+
+        <div id="moneyDisplay">
+            <span id="player1Money">Player 1: $0</span>
+            <span id="player2Money">Player 2: $0</span>
+        </div>
+
+        <div id="debug"></div>
+    </div>
+
+    <audio id="fireSound" src="sounds/fire.mp3"></audio>
+    <audio id="explosionSound" src="sounds/explosion.flac"></audio>
+    <audio id="windSound" src="sounds/wind.wav"></audio>
 
     <script src="game.js"></script>
 </body>

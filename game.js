@@ -11,6 +11,20 @@ const windSound = document.getElementById('windSound');
 let gameOver = false;
 let winner = null;
 let isAIMode = false;
+let currentScreen = 'mainMenu';
+
+// Team data
+const teams = [
+    { name: 'USA', primaryColor: '#0A3161', secondaryColor: '#B31942', flag: '🇺🇸' },
+    { name: 'UK', primaryColor: '#012169', secondaryColor: '#C8102E', flag: '🇬🇧' },
+    { name: 'France', primaryColor: '#0055A4', secondaryColor: '#EF4135', flag: '🇫🇷' },
+    { name: 'Germany', primaryColor: '#000000', secondaryColor: '#DD0000', flag: '🇩🇪' },
+    { name: 'Japan', primaryColor: '#FFFFFF', secondaryColor: '#BC002D', flag: '🇯🇵' },
+];
+
+// Player data
+let player1 = { team: teams[0], money: 0, upgrades: { damage: 0, armor: 0, fuel: 0 } };
+let player2 = { team: teams[1], money: 0, upgrades: { damage: 0, armor: 0, fuel: 0 } };
 
 function log(msg) {
     console.log(msg);
@@ -39,6 +53,10 @@ for (let i = 0; i < 100; i++) {
     });
 }
 
+// Sun and Moon
+let sun = { x: 0, y: 0, radius: 20 };
+let moon = { x: 0, y: 0, radius: 15 };
+
 // Day/Night cycle
 let dayCycleTime = 0;
 function drawSky() {
@@ -61,6 +79,25 @@ function drawSky() {
     gradient.addColorStop(1, lightenColor(skyColor, 30));
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw sun or moon
+    let celestialBody = dayCycleTime < 0.5 ? sun : moon;
+    celestialBody.x = canvas.width * dayCycleTime;
+    celestialBody.y = canvas.height * 0.2 * Math.sin(Math.PI * dayCycleTime) + canvas.height * 0.1;
+    
+    let bodyGradient = ctx.createRadialGradient(celestialBody.x, celestialBody.y, 0, celestialBody.x, celestialBody.y, celestialBody.radius);
+    if (dayCycleTime < 0.5) {
+        bodyGradient.addColorStop(0, 'rgba(255, 255, 200, 1)');
+        bodyGradient.addColorStop(1, 'rgba(255, 255, 200, 0)');
+    } else {
+        bodyGradient.addColorStop(0, 'rgba(200, 200, 255, 1)');
+        bodyGradient.addColorStop(1, 'rgba(200, 200, 255, 0)');
+    }
+    
+    ctx.fillStyle = bodyGradient;
+    ctx.beginPath();
+    ctx.arc(celestialBody.x, celestialBody.y, celestialBody.radius, 0, Math.PI * 2);
+    ctx.fill();
 
     // Draw stars if it's nighttime
     if (dayCycleTime > 0.75 || dayCycleTime < 0.25) {
@@ -245,18 +282,23 @@ function drawWind() {
 }
 
 class Tank {
-    constructor(x, color) {
+    constructor(x, team, player) {
         this.x = x;
-        this.color = color;
+        this.team = team;
+        this.player = player;
         this.angle = 45;
         this.power = 500;
         this.health = 100;
+        this.maxHealth = 100;
+        this.fuel = 100;
+        this.maxFuel = 100;
     }
+
     draw() {
         let y = canvas.height - this.getTerrainHeight(this.x) - 20;
         
         // Tank body
-        ctx.fillStyle = this.color;
+        ctx.fillStyle = this.team.primaryColor;
         ctx.beginPath();
         ctx.moveTo(this.x - 25, y + 15);
         ctx.lineTo(this.x - 20, y);
@@ -267,8 +309,8 @@ class Tank {
         
         // Add shading to tank body
         let gradient = ctx.createLinearGradient(this.x - 25, y, this.x + 25, y + 15);
-        gradient.addColorStop(0, this.color);
-        gradient.addColorStop(1, darkenColor(this.color, 30));
+        gradient.addColorStop(0, this.team.primaryColor);
+        gradient.addColorStop(1, darkenColor(this.team.primaryColor, 30));
         ctx.fillStyle = gradient;
         ctx.fill();
         
@@ -280,7 +322,7 @@ class Tank {
         }
         
         // Tank turret
-        ctx.fillStyle = lightenColor(this.color, 10);
+        ctx.fillStyle = this.team.secondaryColor;
         ctx.beginPath();
         ctx.arc(this.x, y - 5, 15, 0, Math.PI * 2);
         ctx.fill();
@@ -293,7 +335,7 @@ class Tank {
             this.x + Math.cos(cannonAngle * Math.PI / 180) * 35,
             y - 5 - Math.sin(cannonAngle * Math.PI / 180) * 35
         );
-        ctx.strokeStyle = darkenColor(this.color, 20);
+        ctx.strokeStyle = darkenColor(this.team.secondaryColor, 20);
         ctx.lineWidth = 8;
         ctx.stroke();
         
@@ -307,46 +349,115 @@ class Tank {
         ctx.fillStyle = 'red';
         ctx.fillRect(this.x - 25, y - 35, 50, 5);
         ctx.fillStyle = 'green';
-        ctx.fillRect(this.x - 25, y - 35, this.health / 2, 5);
+        ctx.fillRect(this.x - 25, y - 35, (this.health / this.maxHealth) * 50, 5);
+
+        // Fuel bar
+        ctx.fillStyle = 'gray';
+        ctx.fillRect(this.x - 25, y - 42, 50, 5);
+        ctx.fillStyle = 'yellow';
+        ctx.fillRect(this.x - 25, y - 42, (this.fuel / this.maxFuel) * 50, 5);
+
+        // Draw flag
+        ctx.font = '20px Arial';
+        ctx.fillText(this.team.flag, this.x - 10, y - 50);
+
+        // Draw health and fuel text
+        ctx.font = '12px Arial';
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.fillText(`HP: ${Math.round(this.health)}/${this.maxHealth}`, this.x, y - 55);
+        ctx.fillText(`Fuel: ${Math.round(this.fuel)}/${this.maxFuel}`, this.x, y - 68);
+
+        // Draw power meter
+        this.drawPowerMeter();
     }
+
+    drawPowerMeter() {
+        let meterWidth = 10;
+        let meterHeight = 60;
+        let x = this.x + (this === tank1 ? -50 : 40); // Position to the left of tank1 or right of tank2
+        let y = canvas.height - this.getTerrainHeight(this.x) - 70;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(x - 2, y - 2, meterWidth + 4, meterHeight + 4);
+        ctx.fillStyle = 'white';
+        ctx.fillRect(x, y, meterWidth, meterHeight);
+        
+        let powerHeight = (this.power / 1000) * meterHeight;
+        ctx.fillStyle = 'red';
+        ctx.fillRect(x, y + meterHeight - powerHeight, meterWidth, powerHeight);
+
+        ctx.fillStyle = 'white';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.save();
+        ctx.translate(x + meterWidth / 2, y - 10);
+        ctx.fillText('Power', 0, 0);
+        ctx.restore();
+    }
+
     getTerrainHeight(x) {
         let point = terrain.find(p => p.x >= x) || terrain[terrain.length - 1];
         return point.height;
     }
+
     fire() {
-        fireSound.currentTime = 0;
-        fireSound.play().catch(e => console.log("Audio play failed:", e));
-        let cannonAngle = this.x < canvas.width / 2 ? this.angle : 180 - this.angle;
-        return new Projectile(this.x, canvas.height - this.getTerrainHeight(this.x) - 20, cannonAngle, this.power);
+        if (this.fuel >= 10) {
+            fireSound.currentTime = 0;
+            fireSound.play().catch(e => console.log("Audio play failed:", e));
+            let cannonAngle = this.x < canvas.width / 2 ? this.angle : 180 - this.angle;
+            this.fuel -= 10; // Firing costs 10 fuel
+            return new Projectile(this.x, canvas.height - this.getTerrainHeight(this.x) - 20, cannonAngle, this.power, this.player);
+        } else {
+            log(`${this.team.name} tank doesn't have enough fuel to fire!`);
+            return null;
+        }
     }
+
     takeDamage(amount) {
-        this.health -= amount;
+        let actualDamage = amount * (1 - this.player.upgrades.armor * 0.1); // Armor reduces damage
+        this.health = Math.max(0, this.health - actualDamage);
         if (this.health <= 0) {
             gameOver = true;
             winner = this === tank1 ? tank2 : tank1;
+        }
+        return actualDamage;
+    }
+
+    move(direction) {
+        if (this.fuel > 0) {
+            let newX = this.x + direction * 5;
+            if (newX > 30 && newX < canvas.width - 30) {
+                this.x = newX;
+                this.fuel = Math.max(0, this.fuel - 1); // Moving costs 1 fuel
+            }
+        } else {
+            log(`${this.team.name} tank is out of fuel!`);
         }
     }
 }
 
 class Projectile {
-    constructor(x, y, angle, power) {
+    constructor(x, y, angle, power, player) {
         this.x = x;
         this.y = y;
         this.angle = angle;
-        this.velocity = power / 20; // Adjusted for the new power range
+        this.velocity = Math.sqrt(power) * 2;
         this.gravity = 9.8;
         this.time = 0;
         this.trail = [];
+        this.player = player;
     }
+
     update() {
         this.time += 0.1;
         this.x += this.velocity * Math.cos(this.angle * Math.PI / 180) * 0.1;
         this.y -= (this.velocity * Math.sin(this.angle * Math.PI / 180) - 0.5 * this.gravity * this.time) * 0.1;
         this.x += windSpeed * 0.1;
-        
         this.trail.push({x: this.x, y: this.y});
         if (this.trail.length > 20) this.trail.shift();
     }
+
     draw() {
         // Draw trail
         ctx.beginPath();
@@ -368,8 +479,8 @@ class Projectile {
     }
 }
 
-const tank1 = new Tank(50, '#e74c3c');
-const tank2 = new Tank(730, '#3498db');
+const tank1 = new Tank(50, player1.team, player1);
+const tank2 = new Tank(730, player2.team, player2);
 let currentTank = tank1;
 let projectile = null;
 
@@ -384,38 +495,18 @@ function drawExplosion(x, y) {
     explosionSound.currentTime = 0;
     explosionSound.play().catch(e => console.log("Audio play failed:", e));
     
-    for (let i = 0; i < 100; i++) { // Increased number of particles
+    for (let i = 0; i < 100; i++) {
         let angle = Math.random() * Math.PI * 2;
-        let distance = Math.random() * 50; // Increased explosion radius
+        let distance = Math.random() * 50;
         let particleX = x + Math.cos(angle) * distance;
         let particleY = y + Math.sin(angle) * distance;
-        let size = Math.random() * 5 + 2; // Increased particle size
-        let hue = Math.random() * 60 + 15; // Random orange-ish color
+        let size = Math.random() * 5 + 2;
+        let hue = Math.random() * 60 + 15;
         ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
         ctx.beginPath();
         ctx.arc(particleX, particleY, size, 0, Math.PI * 2);
         ctx.fill();
     }
-}
-
-function drawPowerMeter() {
-    let meterWidth = 100;
-    let meterHeight = 10;
-    let x = currentTank.x - meterWidth / 2;
-    let y = canvas.height - getTerrainHeight(currentTank.x) - 70; // Moved up to avoid overlapping with health bar
-
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(x - 2, y - 2, meterWidth + 4, meterHeight + 4);
-    ctx.fillStyle = 'white';
-    ctx.fillRect(x, y, meterWidth, meterHeight);
-    ctx.fillStyle = 'red';
-    ctx.fillRect(x, y, (currentTank.power / 1000) * meterWidth, meterHeight);
-
-    // Add label
-    ctx.fillStyle = 'white';
-    ctx.font = '12px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('Power', x + meterWidth / 2, y - 5);
 }
 
 function gameLoop() {
@@ -425,7 +516,6 @@ function gameLoop() {
     drawWind();
     tank1.draw();
     tank2.draw();
-    drawPowerMeter();
     
     if (projectile) {
         projectile.update();
@@ -434,15 +524,18 @@ function gameLoop() {
         let terrainHeight = getTerrainHeight(projectile.x);
         if (projectile.y > canvas.height - terrainHeight || projectile.x < 0 || projectile.x > canvas.width) {
             drawExplosion(projectile.x, projectile.y);
-            destroyTerrain(projectile.x, projectile.y, 40); // Increased destruction radius
+            destroyTerrain(projectile.x, projectile.y, 40);
             
-            // Check for damage to tanks
             [tank1, tank2].forEach(tank => {
                 let distance = Math.sqrt(Math.pow(tank.x - projectile.x, 2) + Math.pow((canvas.height - tank.getTerrainHeight(tank.x)) - projectile.y, 2));
-                if (distance < 70) {  // Increased blast radius for better hit detection
-                    let damage = Math.max(0, 70 - distance);
-                    tank.takeDamage(damage);
-                    log(`${tank.color === '#e74c3c' ? 'Red' : 'Blue'} tank took ${damage.toFixed(1)} damage!`);
+                if (distance < 70) {
+                    let baseDamage = Math.max(0, 70 - distance);
+                    let actualDamage = tank.takeDamage(baseDamage * (1 + projectile.player.upgrades.damage * 0.1));
+                    log(`${tank.team.name} tank took ${actualDamage.toFixed(1)} damage!`);
+                    
+                    // Award money for hit
+                    projectile.player.money += Math.floor(actualDamage);
+                    updateMoneyDisplay();
                 }
             });
             
@@ -466,7 +559,7 @@ function gameLoop() {
         ctx.fillStyle = 'white';
         ctx.font = '48px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(`${winner.color === '#e74c3c' ? 'Red' : 'Blue'} Tank Wins!`, canvas.width / 2, canvas.height / 2);
+        ctx.fillText(`${winner.team.name} Wins!`, canvas.width / 2, canvas.height / 2);
         ctx.font = '24px Arial';
         ctx.fillText('Click to play again', canvas.width / 2, canvas.height / 2 + 40);
     } else {
@@ -483,44 +576,193 @@ function updateControls() {
 
 function updateTurnIndicator() {
     const turnIndicator = document.getElementById('turnIndicator');
-    turnIndicator.textContent = `Current Turn: ${currentTank.color === '#e74c3c' ? 'RED' : 'BLUE'} tank`;
-    turnIndicator.style.color = currentTank.color;
+    turnIndicator.textContent = `Current Turn: ${currentTank.team.name}`;
+    turnIndicator.style.color = currentTank.team.primaryColor;
+}
+
+function updateMoneyDisplay() {
+    document.getElementById('player1Money').textContent = `${player1.team.name}: $${player1.money}`;
+    document.getElementById('player2Money').textContent = `${player2.team.name}: $${player2.money}`;
 }
 
 function resetGame() {
     gameOver = false;
     winner = null;
-    tank1.health = 100;
-    tank2.health = 100;
+    tank1.health = tank1.maxHealth;
+    tank2.health = tank2.maxHealth;
+    tank1.fuel = tank1.maxFuel;
+    tank2.fuel = tank2.maxFuel;
     currentTank = tank1;
     projectile = null;
+    // Money and upgrades are not reset to persist between rounds
     initializeTerrain();
     updateWind();
     updateControls();
     updateTurnIndicator();
+    updateMoneyDisplay();
     gameLoop();
 }
 
 function AITurn() {
     if (!gameOver && currentTank === tank2) {
-        // Improved AI logic
         let distanceToPlayer = Math.abs(tank2.x - tank1.x);
         let heightDifference = tank2.getTerrainHeight(tank2.x) - tank1.getTerrainHeight(tank1.x);
         
-        // Adjust angle based on distance and height difference
         tank2.angle = Math.min(89, Math.max(1, 45 + (heightDifference / distanceToPlayer) * 45));
+        tank2.power = Math.min(1000, Math.max(200, distanceToPlayer * 1.5));
         
-        // Adjust power based on distance
-        tank2.power = Math.min(1000, Math.max(200, distanceToPlayer * 2));
-        
-        // Add some randomness
-        tank2.angle += (Math.random() - 0.5) * 10;
-        tank2.power += (Math.random() - 0.5) * 100;
+        // Add randomness within limits
+        tank2.angle = Math.min(89, Math.max(1, tank2.angle + (Math.random() - 0.5) * 10));
+        tank2.power = Math.min(1000, Math.max(200, tank2.power + (Math.random() - 0.5) * 100));
         
         updateControls();
         projectile = tank2.fire();
     }
 }
+
+function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(screen => screen.classList.add('hidden'));
+    document.getElementById(screenId).classList.remove('hidden');
+    currentScreen = screenId;
+}
+
+function initializeTeamSelection() {
+    const player1Select = document.getElementById('player1Team');
+    const player2Select = document.getElementById('player2Team');
+    player1Select.innerHTML = '';
+    player2Select.innerHTML = '';
+    teams.forEach((team, index) => {
+        player1Select.innerHTML += `<option value="${index}">${team.flag} ${team.name}</option>`;
+        player2Select.innerHTML += `<option value="${index}">${team.flag} ${team.name}</option>`;
+    });
+
+    player1Select.addEventListener('change', () => updateTeamPreview('player1'));
+    player2Select.addEventListener('change', () => updateTeamPreview('player2'));
+
+    // Initialize previews
+    updateTeamPreview('player1');
+    updateTeamPreview('player2');
+}
+
+function updateTeamPreview(playerID) {
+    const select = document.getElementById(`${playerID}Team`);
+    const flagContainer = document.querySelector(`#${playerID}Selection .flag-container`);
+    const tankPreview = document.querySelector(`#${playerID}Selection .tank-preview`);
+    const selectedTeam = teams[select.value];
+
+    flagContainer.textContent = selectedTeam.flag;
+    tankPreview.style.backgroundColor = selectedTeam.primaryColor;
+    tankPreview.style.boxShadow = `0 0 10px ${selectedTeam.secondaryColor}`;
+}
+
+function startGame() {
+    player1.team = teams[document.getElementById('player1Team').value];
+    player2.team = teams[document.getElementById('player2Team').value];
+    tank1.team = player1.team;
+    tank2.team = player2.team;
+    showScreen('gameScreen');
+    resetGame();
+}
+
+function saveGame() {
+    const gameState = {
+        player1: player1,
+        player2: player2,
+        tank1: {
+            x: tank1.x,
+            angle: tank1.angle,
+            power: tank1.power,
+            health: tank1.health,
+            fuel: tank1.fuel
+        },
+        tank2: {
+            x: tank2.x,
+            angle: tank2.angle,
+            power: tank2.power,
+            health: tank2.health,
+            fuel: tank2.fuel
+        },
+        currentTank: currentTank === tank1 ? 'tank1' : 'tank2',
+        terrain: terrain,
+        windSpeed: windSpeed,
+        isAIMode: isAIMode
+    };
+    localStorage.setItem('tankGameSave', JSON.stringify(gameState));
+    alert('Game saved successfully!');
+}
+
+function loadGame() {
+    const savedGame = localStorage.getItem('tankGameSave');
+    if (savedGame) {
+        const gameState = JSON.parse(savedGame);
+        player1 = gameState.player1;
+        player2 = gameState.player2;
+        tank1 = new Tank(gameState.tank1.x, player1.team, player1);
+        tank2 = new Tank(gameState.tank2.x, player2.team, player2);
+        tank1.angle = gameState.tank1.angle;
+        tank1.power = gameState.tank1.power;
+        tank1.health = gameState.tank1.health;
+        tank1.fuel = gameState.tank1.fuel;
+        tank2.angle = gameState.tank2.angle;
+        tank2.power = gameState.tank2.power;
+        tank2.health = gameState.tank2.health;
+        tank2.fuel = gameState.tank2.fuel;
+        currentTank = gameState.currentTank === 'tank1' ? tank1 : tank2;
+        terrain = gameState.terrain;
+        windSpeed = gameState.windSpeed;
+        isAIMode = gameState.isAIMode;
+        updateControls();
+        updateTurnIndicator();
+        updateMoneyDisplay();
+        showScreen('gameScreen');
+        gameLoop();
+    } else {
+        alert('No saved game found!');
+    }
+}
+
+function showUpgradeStore() {
+    const storeDiv = document.getElementById('upgradeStore');
+    storeDiv.innerHTML = `
+        <h3>Upgrades for ${currentTank.team.name}</h3>
+        <button onclick="buyUpgrade('damage')">Upgrade Damage ($100)</button>
+        <button onclick="buyUpgrade('armor')">Upgrade Armor ($150)</button>
+        <button onclick="buyUpgrade('fuel')">Upgrade Fuel Capacity ($200)</button>
+        <button onclick="closeUpgradeStore()">Close Store</button>
+    `;
+    storeDiv.classList.remove('hidden');
+}
+
+function closeUpgradeStore() {
+    document.getElementById('upgradeStore').classList.add('hidden');
+}
+
+function buyUpgrade(type) {
+    const costs = { damage: 100, armor: 150, fuel: 200 };
+    if (currentTank.player.money >= costs[type]) {
+        currentTank.player.money -= costs[type];
+        currentTank.player.upgrades[type]++;
+        updateMoneyDisplay();
+        log(`${currentTank.team.name} upgraded ${type}!`);
+        
+        if (type === 'fuel') {
+            currentTank.maxFuel += 20;
+            currentTank.fuel = currentTank.maxFuel;
+        }
+    } else {
+        log(`Not enough money to upgrade ${type}!`);
+    }
+}
+
+// Event Listeners
+document.getElementById('newGameBtn').addEventListener('click', () => {
+    showScreen('teamSelection');
+    initializeTeamSelection();
+});
+
+document.getElementById('loadGameBtn').addEventListener('click', loadGame);
+
+document.getElementById('startGameBtn').addEventListener('click', startGame);
 
 document.getElementById('angleInput').addEventListener('input', (e) => {
     currentTank.angle = parseInt(e.target.value);
@@ -535,8 +777,20 @@ document.getElementById('powerInput').addEventListener('input', (e) => {
 document.getElementById('fireButton').addEventListener('click', () => {
     if (!projectile && !gameOver && (currentTank === tank1 || !isAIMode)) {
         projectile = currentTank.fire();
-        log(`${currentTank.color === '#e74c3c' ? 'Red' : 'Blue'} tank fired!`);
+        if (projectile) {
+            log(`${currentTank.team.name} tank fired!`);
+        }
     }
+});
+
+document.getElementById('moveLeftBtn').addEventListener('click', () => {
+    currentTank.move(-1);
+    updateControls();
+});
+
+document.getElementById('moveRightBtn').addEventListener('click', () => {
+    currentTank.move(1);
+    updateControls();
 });
 
 canvas.addEventListener('click', () => {
@@ -552,9 +806,65 @@ document.getElementById('aiToggle').addEventListener('change', (e) => {
     }
 });
 
+document.getElementById('saveGameBtn').addEventListener('click', saveGame);
+
+document.getElementById('mainMenuBtn').addEventListener('click', () => {
+    showScreen('mainMenu');
+});
+
+document.getElementById('openStoreBtn').addEventListener('click', showUpgradeStore);
+
+// Hot keys
+document.addEventListener('keydown', (e) => {
+    if (currentScreen === 'gameScreen' && !gameOver) {
+        switch(e.key) {
+            case ' ':
+                if (!projectile) document.getElementById('fireButton').click();
+                break;
+            case 'ArrowLeft':
+                document.getElementById('moveLeftBtn').click();
+                break;
+            case 'ArrowRight':
+                document.getElementById('moveRightBtn').click();
+                break;
+            case 'ArrowUp':
+                currentTank.angle = Math.min(89, currentTank.angle + 1);
+                updateControls();
+                break;
+            case 'ArrowDown':
+                currentTank.angle = Math.max(1, currentTank.angle - 1);
+                updateControls();
+                break;
+            case 'PageUp':
+                currentTank.power = Math.min(1000, currentTank.power + 10);
+                updateControls();
+                break;
+            case 'PageDown':
+                currentTank.power = Math.max(200, currentTank.power - 10);
+                updateControls();
+                break;
+            case 's':
+                showUpgradeStore();
+                break;
+        }
+    }
+});
+
+// Initialize the game
+showScreen('mainMenu');
 initializeTerrain();
 updateWind();
 updateControls();
 updateTurnIndicator();
-log('Starting game loop');
-gameLoop();
+updateMoneyDisplay();
+log('Game initialized. Welcome to Advanced Tank Game!');
+
+// Explanation of upgrades:
+// 1. Damage: Increases the damage dealt by projectiles
+// 2. Armor: Reduces the damage taken from enemy projectiles
+// 3. Fuel: Increases the maximum fuel capacity, allowing for more movement and shots
+
+log('Upgrade explanations:');
+log('- Damage: Increases projectile damage');
+log('- Armor: Reduces damage taken from enemy projectiles');
+log('- Fuel: Increases maximum fuel capacity for more movement and shots');
